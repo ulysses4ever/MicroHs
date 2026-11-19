@@ -56,6 +56,7 @@ install flags = do
   time "mkConf" $ mkConf flags'
   time "copyRTS" $ copyRTS flags'
   time "copyBase" $ copyBase flags'
+  time "copyPackages" $ copyPackages flags'
   time "registerBase" $ registerBase flags'
   time "checkPath" $ checkPath flags'
   time "pgo" $ optMhs flags'
@@ -102,6 +103,18 @@ copyBase flags = do
   mkdir flags mCabalMhs
   out <- mhsOut flags ["-Q", "generated" </> "base.pkg", mCabalMhs]
   msg flags out
+
+-- The packages that come with mhs besides base: the forks of array and
+-- random that mhs needs, under the names of the packages they fork, and the
+-- packages random depends on.  See generated/packages in the Makefile.
+copyPackages :: Flags -> IO ()
+copyPackages flags = do
+  let mCabalMhs = instDir flags </> ("mhs-" ++ version flags)
+      dir = "generated" </> "packages"
+  pkgs <- filter (isSuffixOf ".pkg") <$> listDirectory dir
+  forM_ (sort pkgs) $ \ pkg -> do
+    out <- mhsOut flags ["-Q", dir </> pkg, mCabalMhs]
+    msg flags out
 
 -- Packages from Hackage depend on base-4.x, and on bytestring, text, etc.,
 -- whose modules are part of the base of mhs.  Say so in Cabal registration

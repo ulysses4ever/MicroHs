@@ -348,16 +348,33 @@ $(MCABALBIN)/mcabal: bin/mcabal
 	cp bin/mcabal $(MCABALBIN)
 
 preparedist:	newmhsz bootstrapcpphs
-	rm -f generated/mcabal.c generated/mhseval.js generated/base.pkg
+	rm -rf generated/mcabal.c generated/mhseval.js generated/base.pkg generated/packages
 	$(MAKE) generated/mcabal.c
 	$(MAKE) generated/install.c
 	$(MAKE) generated/tester.c
 	$(MAKE) generated/mhseval.js
 	$(MAKE) generated/base.pkg
+	$(MAKE) generated/packages
 
 generated/base.pkg: bin/mhs bin/mcabal
 	cd lib; PATH=../bin:"$$PATH" mcabal $(MCABALGMP) build
 	cp lib/dist-mcabal/base-$(VERSION).pkg generated/base.pkg
+
+# The packages installed with mhs besides base: the forks of array and random,
+# from checkouts of their repositories beside this one, under the names of the
+# packages they fork, and the packages random depends on, from Hackage.
+# Needs an installed mhs and mcabal on the PATH, like Makefile.packages does.
+generated/packages:
+	rm -rf generated/packages; mkdir -p generated/packages
+	t=$$(mktemp -d); \
+	for p in ghc-compat time transformers mtl splitmix; do CABALDIR=$$t mcabal -q install $$p || exit 1; done; \
+	cp $$t/mhs-$(VERSION)/packages/*.pkg generated/packages/; \
+	for f in array random; do \
+	  v=$$(sed -n 's/^version: *//p' ../$$f-mhs/$$f-mhs.cabal); \
+	  m=$$(sed -n '/^library/,/^test-suite/p' ../$$f-mhs/$$f-mhs.cabal | sed -n 's/^ *\([A-Z][A-Za-z0-9.]*\),*$$/\1/p' | sort -u); \
+	  mhs -P$$f-$$v -ogenerated/packages/$$f-$$v.pkg -i../$$f-mhs -i../$$f-mhs/src -a$$t/mhs-$(VERSION) $$m || exit 1; \
+	done; \
+	rm -rf $$t
 
 install:	installmsg minstall
 
@@ -370,6 +387,7 @@ installmsg:
 	@echo '*    mcabal  - cabal for MicroHs'
 	@echo '*  Libraries:'
 	@echo '*    base (bytestring, deepseq, directory, hashable, text, stm)'
+	@echo '*    array, random (and ghc-compat, time, splitmix, transformers, mtl)'
 	@echo '*  Configuration (in $(MDATA)):'
 	@echo '*    mhs.conf  – package path and build targets'
 	@echo '***************************************************'
